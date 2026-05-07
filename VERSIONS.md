@@ -46,7 +46,7 @@ The reusable system structure is documented in [PROJECT_TEMPLATE.md](PROJECT_TEM
 ## Shader Deformation V2
 
 - Branch: `shader-deformation-v2`
-- URL: pending Vercel preview
+- URL: https://machine-anxiety-git-shader-d-793dd5-chanjuanpeng-cells-projects.vercel.app
 - Purpose: builds on `export-pipeline-v2` with pressure slices, shear, local fracture, and velocity lag in the point-cloud deformation system.
 - Guide: [SHADER_DEFORMATION_GUIDE.md](SHADER_DEFORMATION_GUIDE.md)
 
