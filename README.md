@@ -22,6 +22,8 @@ The first future-work branch for replacing the point-cloud model is documented i
 
 The export workflow for high-resolution stills and JPG sequences is documented in [EXPORT_PIPELINE_GUIDE.md](EXPORT_PIPELINE_GUIDE.md).
 
+The more complex deformation branch is documented in [SHADER_DEFORMATION_GUIDE.md](SHADER_DEFORMATION_GUIDE.md).
+
 ## Video
 
 👉 [Watch the final video](https://vimeo.com/1188890187)
@@ -79,6 +81,8 @@ For future works derived from this project, use [PROJECT_TEMPLATE.md](PROJECT_TE
 For new scans or model-based works, start with [MODEL_REPLACEMENT_GUIDE.md](MODEL_REPLACEMENT_GUIDE.md).
 
 For still images and video-sequence output, use [EXPORT_PIPELINE_GUIDE.md](EXPORT_PIPELINE_GUIDE.md).
+
+For data-pressure slice, shear, and fracture experiments, use [SHADER_DEFORMATION_GUIDE.md](SHADER_DEFORMATION_GUIDE.md).
 
 ## Data
 The dataset consists of historical GBP/CNY exchange-rate values recorded between September 2024 and April 2026.

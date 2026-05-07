@@ -164,6 +164,14 @@
                 stillWidth: 3840,
                 stillHeight: 2160,
                 stillName: 'Machine_Anxiety_Still'
+            },
+            deformation: {
+                sliceStrength: 0.055,
+                sliceFrequency: 6.4,
+                shearStrength: 0.045,
+                fractureStrength: 0.095,
+                lagStrength: 0.055,
+                gateThreshold: 0.34
             }
         };
 
@@ -834,13 +842,19 @@
                 const count = positions.count;
                 const time = now * 0.00115;
 
-                // Classic deformation model restored from the earlier version.
-                // This is simpler and more continuous, which gives the point cloud a more natural organic movement.
+                // Deformation v2 keeps the readable organic drift, then adds data-pressure slices.
                 const visualStress = currentAnxiety;
                 let finalInstability = visualStress <= 0.55 ? (visualStress / 0.55) * 0.0065 : 0.0065 + Math.pow((visualStress - 0.55) / 0.45, 2) * 0.095;
                 const collapseDrive = visualStress > 0.72 ? (visualStress - 0.72) / 0.28 : 0;
                 const pressureDrive = THREE.MathUtils.clamp((visualStress - 0.22) / 0.78, 0, 1);
                 const pressurePulse = 0.78 + 0.22 * Math.sin(time * 2.4);
+                const deformationConfig = SYSTEM_CONFIG.deformation;
+                const mappingDeviation = currentSoundMapping.deviation || 0;
+                const mappingVelocity = currentSoundMapping.velocity || 0;
+                const mappingShock = currentSoundMapping.shock || 0;
+                const sliceDrive = THREE.MathUtils.clamp((visualStress - deformationConfig.gateThreshold) / (1 - deformationConfig.gateThreshold), 0, 1);
+                const fractureDrive = THREE.MathUtils.clamp(collapseDrive * 0.75 + mappingShock * 0.65, 0, 1);
+                const lagDrive = THREE.MathUtils.clamp(mappingVelocity * 0.8 + sliceDrive * 0.25, 0, 1);
 
                 for (let i = 0; i < count; i++) {
                     const bx = bases.getX(i), by = bases.getY(i), bz = bases.getZ(i);
@@ -860,6 +874,13 @@
                     const fieldC = Math.sin((bx + bz) * 2.0 + time * 0.76);
                     const scanSlice = Math.sin((bx * 5.7) + (bz * 3.2) - time * 2.15);
                     const scanBreak = pressureWeight * pressureWeight * Math.max(0, scanSlice) * pressurePulse;
+                    const slicePhase = Math.floor((by + 1.6) * deformationConfig.sliceFrequency);
+                    const sliceHash = Math.sin(slicePhase * 12.9898 + i * 0.013 + time * 1.9);
+                    const sliceGate = Math.max(0, Math.sin(by * deformationConfig.sliceFrequency + time * (1.1 + mappingVelocity * 2.1)));
+                    const sliceOffset = sliceDrive * deformationConfig.sliceStrength * sliceGate * (0.55 + mappingDeviation * 0.8);
+                    const shearOffset = sliceDrive * deformationConfig.shearStrength * Math.sin(by * 3.2 + bz * 1.7 + time * 0.9);
+                    const fractureMask = Math.abs(sliceHash) > (0.92 - fractureDrive * 0.22) ? 1 : 0;
+                    const fractureOffset = fractureMask * fractureDrive * deformationConfig.fractureStrength * (0.4 + edgeWeight * 0.9);
 
                     const radialLen = Math.max(0.0001, dist);
                     const radialX = bx / radialLen, radialY = by / radialLen, radialZ = bz / radialLen;
@@ -879,6 +900,10 @@
                     targetY += pressureY * scanBreak * 0.075 + pressureWeight * fieldB * 0.018;
                     targetZ += pressureZ * scanBreak * 0.18 + pressureWeight * fieldC * 0.036;
 
+                    targetX += (pressureX * sliceOffset) + shearOffset + (sliceHash > 0 ? fractureOffset : -fractureOffset) * 0.62;
+                    targetY += Math.sin(slicePhase + time * 1.4) * sliceOffset * 0.18 + radialY * fractureOffset * 0.28;
+                    targetZ += (pressureZ * sliceOffset * 0.72) - shearOffset * 0.45 + (sliceHash < 0 ? fractureOffset : -fractureOffset) * 0.48;
+
                     if (collapseDrive > 0) {
                         const isDetached = Math.abs(Math.sin(i * 91.173 + bx * 3.1 + bz * 2.7)) > (0.82 - collapseDrive * 0.34 - edgeWeight * 0.18 - pressureWeight * 0.12);
                         if (isDetached) {
@@ -891,7 +916,8 @@
                             continue;
                         }
                     }
-                    positions.setXYZ(i, px + (targetX - px) * 0.20, py + (targetY - py) * 0.20, pz + (targetZ - pz) * 0.20);
+                    const sliceLerp = 0.18 - lagDrive * deformationConfig.lagStrength + fractureMask * fractureDrive * 0.035;
+                    positions.setXYZ(i, px + (targetX - px) * sliceLerp, py + (targetY - py) * sliceLerp, pz + (targetZ - pz) * sliceLerp);
                 }
                 positions.needsUpdate = true;
             }

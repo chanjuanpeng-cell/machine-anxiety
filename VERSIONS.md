@@ -43,6 +43,13 @@ The reusable system structure is documented in [PROJECT_TEMPLATE.md](PROJECT_TEM
 - Purpose: builds on `model-replacement-v2` with clearer still-image and JPG-sequence export controls.
 - Guide: [EXPORT_PIPELINE_GUIDE.md](EXPORT_PIPELINE_GUIDE.md)
 
+## Shader Deformation V2
+
+- Branch: `shader-deformation-v2`
+- URL: pending Vercel preview
+- Purpose: builds on `export-pipeline-v2` with pressure slices, shear, local fracture, and velocity lag in the point-cloud deformation system.
+- Guide: [SHADER_DEFORMATION_GUIDE.md](SHADER_DEFORMATION_GUIDE.md)
+
 ## Working Rule
 
 Do not merge preview branches into `main` until the submitted version no longer needs to remain unchanged.
