@@ -200,6 +200,20 @@
         <textarea id="debug-output" readonly></textarea>
     </div>
 
+    <div id="audio-mixer" style="position:absolute; bottom:24px; right:24px; z-index:40; width:280px; background:rgba(0,0,0,0.78); color:#cfcfcf; padding:14px 16px; box-sizing:border-box; font-family:monospace; font-size:11px; letter-spacing:0.3px; backdrop-filter:blur(6px); display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <span style="color:#f0f0f0; letter-spacing:1px; text-transform:uppercase;">Audio Mixer</span>
+            <span style="color:#666;">press M</span>
+        </div>
+        <div id="mixer-rows"></div>
+        <button id="mixer-record" style="width:100%; margin-top:14px; background:rgba(226,85,75,0.12); color:#e2554b; border:1px solid rgba(226,85,75,0.5); padding:8px; font-family:monospace; font-size:11px; letter-spacing:0.8px; text-transform:uppercase; cursor:pointer;">● Record audio</button>
+        <div style="display:flex; gap:8px; margin-top:8px;">
+            <button id="mixer-copy" style="flex:1; background:rgba(255,255,255,0.06); color:#cfcfcf; border:1px solid rgba(255,255,255,0.15); padding:6px; font-family:monospace; font-size:10px; letter-spacing:0.5px; text-transform:uppercase; cursor:pointer;">Copy Settings</button>
+            <button id="mixer-reset" style="flex:1; background:rgba(255,255,255,0.06); color:#cfcfcf; border:1px solid rgba(255,255,255,0.15); padding:6px; font-family:monospace; font-size:10px; letter-spacing:0.5px; text-transform:uppercase; cursor:pointer;">Reset</button>
+        </div>
+        <div id="mixer-status" style="margin-top:8px; color:#777; min-height:13px;"></div>
+    </div>
+
     <script type="importmap">
         { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
     </script>
@@ -646,6 +660,16 @@
         const SHOCK_WEIGHT = 0.26;
         const SOUND_MASTER_GAIN = 1.35;
         const SOUND_LAYER_GAIN = 2.15;
+        // Live mixer: per-layer multipliers (1 = unchanged, 0 = muted). Tunable via the M-key panel.
+        const SOUND_MIX = {
+            master: 1.0,
+            machine: 1.0,
+            heartbeat: 1.0,
+            room: 1.0,
+            air: 1.0,
+            click: 1.0,
+            glitch: 1.0
+        };
         const PRESSURE_ORIGIN = SYSTEM_CONFIG.model.pressureOrigin;
         const PRESSURE_RADIUS = SYSTEM_CONFIG.model.pressureRadius;
         const RECOGNITION_HOLD_ANXIETY = 0.18;
@@ -949,7 +973,7 @@
             if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             if (!isAudioInitialized) {
                 masterOutput = audioCtx.createGain();
-                masterOutput.gain.value = SOUND_MASTER_GAIN;
+                masterOutput.gain.value = SOUND_MASTER_GAIN * SOUND_MIX.master;
                 compressorNode = audioCtx.createDynamicsCompressor();
                 compressorNode.threshold.value = -18;
                 compressorNode.knee.value = 24;
@@ -1374,7 +1398,7 @@
         // Export controls: S saves one high-resolution still, K starts/stops a JPG sequence.
         window.addEventListener('keydown', (event) => {
             const key = event.key.toLowerCase();
-            const functionKeys = new Set(['d', ' ', 'p', 'enter', 's', 'k', 'a']);
+            const functionKeys = new Set(['d', ' ', 'p', 'enter', 's', 'k', 'a', 'm', 'r']);
             if (!functionKeys.has(key) && systemStarted && dataPlaybackStarted) {
                 enterManualCameraMode();
             }
@@ -1382,6 +1406,17 @@
                 event.preventDefault();
                 document.getElementById('debug-panel')?.classList.toggle('visible');
                 updateLiveViewReadout();
+            }
+            if (key === 'm') {
+                event.preventDefault();
+                const mixer = document.getElementById('audio-mixer');
+                if (mixer) mixer.style.display = mixer.style.display === 'block' ? 'none' : 'block';
+            }
+            if (key === 'r') {
+                event.preventDefault();
+                const mixer = document.getElementById('audio-mixer');
+                if (mixer && mixer.style.display !== 'block') mixer.style.display = 'block';
+                toggleAudioRecording();
             }
             if (key === ' ' || key === 'p') {
                 event.preventDefault();
@@ -1425,7 +1460,7 @@
             clickFilter.Q.value = 7 + volatility * 5;
             clickPan.pan.value = THREE.MathUtils.clamp((Math.random() * 2 - 1) * (0.25 + volatility * 0.45), -0.8, 0.8);
             clickGain.gain.setValueAtTime(0.0001, nowSec);
-            clickGain.gain.exponentialRampToValueAtTime((0.006 + volatility * 0.020) * fadeGain * SOUND_LAYER_GAIN, nowSec + 0.006);
+            clickGain.gain.exponentialRampToValueAtTime((0.006 + volatility * 0.020) * fadeGain * SOUND_LAYER_GAIN * SOUND_MIX.click, nowSec + 0.006);
             clickGain.gain.exponentialRampToValueAtTime(0.0001, nowSec + 0.035 + volatility * 0.035);
             clickOsc.connect(clickFilter);
             clickFilter.connect(clickGain);
@@ -1438,7 +1473,7 @@
         function triggerOverloadGlitch(volatility, fadeGain) {
             if (!audioCtx || !eventNoiseGain || !eventFilter) return;
             const nowSec = audioCtx.currentTime;
-            const burst = (0.010 + volatility * 0.038 + Math.random() * 0.008) * fadeGain * SOUND_LAYER_GAIN;
+            const burst = (0.010 + volatility * 0.038 + Math.random() * 0.008) * fadeGain * SOUND_LAYER_GAIN * SOUND_MIX.glitch;
             eventFilter.frequency.setValueAtTime(1300 + volatility * 2400 + Math.random() * 700, nowSec);
             eventFilter.Q.setValueAtTime(3.5 + volatility * 5, nowSec);
             if (eventPanner) eventPanner.pan.setValueAtTime(THREE.MathUtils.clamp((Math.random() * 2 - 1) * 0.95, -1, 1), nowSec);
@@ -1467,7 +1502,7 @@
             const nowSec = audioCtx.currentTime;
             const breathLfo = 0.5 + 0.5 * Math.sin(now * 0.00115);
             const slowPressure = 0.5 + 0.5 * Math.sin(now * 0.00031 + trend * 0.8);
-            const breathIntensity = (0.010 + volatility * 0.050 + anxiety * 0.018) * (0.38 + breathLfo * 0.62) * fadeGain * SOUND_LAYER_GAIN;
+            const breathIntensity = (0.010 + volatility * 0.050 + anxiety * 0.018) * (0.38 + breathLfo * 0.62) * fadeGain * SOUND_LAYER_GAIN * SOUND_MIX.machine;
 
             oscillator.frequency.setTargetAtTime(34 + volatility * 13 + slowPressure * 4, nowSec, 0.16);
             filterNode.frequency.setTargetAtTime(105 + volatility * 390 + Math.abs(trend) * 180, nowSec, 0.18);
@@ -1477,35 +1512,37 @@
             const bpm = 34 + volatility * 58 + shock * 26;
             const beatInterval = 60 / bpm;
             if (nowSec >= nextHeartbeatTime && fadeGain > 0.05) {
-                const pulseAmp = (0.018 + volatility * 0.050 + shock * 0.030) * fadeGain * SOUND_LAYER_GAIN;
-                subOscillator.frequency.setValueAtTime(29 + volatility * 8, nowSec);
-                subGainNode.gain.cancelScheduledValues(nowSec);
-                subGainNode.gain.setValueAtTime(0.0001, nowSec);
-                subGainNode.gain.exponentialRampToValueAtTime(pulseAmp, nowSec + 0.018);
-                subGainNode.gain.exponentialRampToValueAtTime(0.0001, nowSec + 0.16 + volatility * 0.05);
+                const pulseAmp = (0.018 + volatility * 0.050 + shock * 0.030) * fadeGain * SOUND_LAYER_GAIN * SOUND_MIX.heartbeat;
+                if (pulseAmp > 0.00005) {
+                    subOscillator.frequency.setValueAtTime(29 + volatility * 8, nowSec);
+                    subGainNode.gain.cancelScheduledValues(nowSec);
+                    subGainNode.gain.setValueAtTime(0.0001, nowSec);
+                    subGainNode.gain.exponentialRampToValueAtTime(pulseAmp, nowSec + 0.018);
+                    subGainNode.gain.exponentialRampToValueAtTime(0.0001, nowSec + 0.16 + volatility * 0.05);
+                }
                 nextHeartbeatTime = nowSec + beatInterval * (0.72 + Math.random() * 0.56);
             }
 
             const clickDensity = 0.55 + volatility * 6.0 + shock * 2.5;
             if (nowSec >= nextClickTime && fadeGain > 0.05) {
-                triggerDataClick(volatility, trend, fadeGain);
+                if (SOUND_MIX.click > 0.001) triggerDataClick(volatility, trend, fadeGain);
                 nextClickTime = nowSec + 1 / clickDensity * (0.45 + Math.random() * 1.5);
             }
 
             const noiseBrightness = 420 + volatility * 1850 + Math.max(trend, 0) * 360 + shock * 1200;
-            const noiseLevel = (0.012 + volatility * 0.050 + anxiety * 0.014) * fadeGain * SOUND_LAYER_GAIN;
+            const noiseLevel = (0.012 + volatility * 0.050 + anxiety * 0.014) * fadeGain * SOUND_LAYER_GAIN * SOUND_MIX.room;
             roomNoiseGain.gain.setTargetAtTime(noiseLevel, nowSec, 0.20);
             roomFilter.frequency.setTargetAtTime(noiseBrightness, nowSec, 0.24);
             roomFilter.Q.setTargetAtTime(0.45 + volatility * 1.8, nowSec, 0.24);
             if (roomPanner) roomPanner.pan.setTargetAtTime(THREE.MathUtils.clamp(-trend * 0.22, -0.45, 0.45), nowSec, 0.28);
 
-            const airLevel = (0.002 + volatility * 0.020 + shock * 0.018) * fadeGain * SOUND_LAYER_GAIN;
+            const airLevel = (0.002 + volatility * 0.020 + shock * 0.018) * fadeGain * SOUND_LAYER_GAIN * SOUND_MIX.air;
             airNoiseGain.gain.setTargetAtTime(airLevel, nowSec, 0.14);
             airFilter.frequency.setTargetAtTime(1300 + volatility * 3200 + shock * 1800, nowSec, 0.16);
             if (airPanner) airPanner.pan.setTargetAtTime(THREE.MathUtils.clamp(trend * 0.38 + Math.sin(now * 0.00051) * 0.12, -0.7, 0.7), nowSec, 0.18);
 
             if ((volatility > 0.82 || shock > 0.62) && nowSec > overloadGlitchCooldown && Math.random() < 0.015 + shock * 0.045) {
-                triggerOverloadGlitch(volatility, fadeGain);
+                if (SOUND_MIX.glitch > 0.001) triggerOverloadGlitch(volatility, fadeGain);
                 overloadGlitchCooldown = nowSec + 1.2 + Math.random() * 2.2;
             }
         }
@@ -1861,6 +1898,168 @@
                 renderer.setSize(window.innerWidth, window.innerHeight); composer.setSize(window.innerWidth, window.innerHeight);
             }
         });
+
+        // === Live audio mixer panel (toggle with M) ===
+        const MIXER_LAYERS = [
+            ['master', 'Master', 'overall volume'],
+            ['machine', 'Machine drone', 'low oscillator hum'],
+            ['heartbeat', 'Heartbeat', 'sub-bass pulse'],
+            ['room', 'Room noise', 'mid filtered hiss'],
+            ['air', 'Air noise', 'high airy hiss'],
+            ['click', 'Clicks', 'data ticks'],
+            ['glitch', 'Glitch', 'overload bursts']
+        ];
+        function applyMixerMaster() {
+            if (typeof masterOutput !== 'undefined' && masterOutput) {
+                masterOutput.gain.value = SOUND_MASTER_GAIN * SOUND_MIX.master;
+            }
+        }
+        const mixerRefreshers = [];
+        function buildAudioMixer() {
+            const rows = document.getElementById('mixer-rows');
+            const statusEl = document.getElementById('mixer-status');
+            if (!rows) return;
+            MIXER_LAYERS.forEach(([key, label, hint]) => {
+                const row = document.createElement('div');
+                row.style.margin = '9px 0';
+                const top = document.createElement('div');
+                top.style.cssText = 'display:flex; justify-content:space-between; align-items:baseline; margin-bottom:3px;';
+                const name = document.createElement('span');
+                name.textContent = label;
+                name.style.color = '#e0e0e0';
+                const val = document.createElement('span');
+                val.style.color = '#888';
+                val.textContent = Math.round(SOUND_MIX[key] * 100) + '%';
+                top.appendChild(name); top.appendChild(val);
+                const ctrl = document.createElement('div');
+                ctrl.style.cssText = 'display:flex; gap:8px; align-items:center;';
+                const slider = document.createElement('input');
+                slider.type = 'range'; slider.min = '0'; slider.max = '200'; slider.step = '1';
+                slider.value = String(Math.round(SOUND_MIX[key] * 100));
+                slider.style.cssText = 'flex:1; accent-color:#cfcfcf;';
+                const mute = document.createElement('button');
+                mute.textContent = 'M';
+                mute.style.cssText = 'width:24px; background:rgba(255,255,255,0.06); color:#cfcfcf; border:1px solid rgba(255,255,255,0.15); font-family:monospace; font-size:10px; cursor:pointer;';
+                let lastNonZero = SOUND_MIX[key] || 1;
+                const refresh = () => {
+                    val.textContent = Math.round(SOUND_MIX[key] * 100) + '%';
+                    slider.value = String(Math.round(SOUND_MIX[key] * 100));
+                    mute.style.color = SOUND_MIX[key] <= 0.001 ? '#e2554b' : '#cfcfcf';
+                };
+                slider.addEventListener('input', () => {
+                    SOUND_MIX[key] = parseInt(slider.value, 10) / 100;
+                    if (SOUND_MIX[key] > 0.001) lastNonZero = SOUND_MIX[key];
+                    if (key === 'master') applyMixerMaster();
+                    refresh();
+                });
+                mute.addEventListener('click', () => {
+                    SOUND_MIX[key] = SOUND_MIX[key] <= 0.001 ? lastNonZero : 0;
+                    if (key === 'master') applyMixerMaster();
+                    refresh();
+                });
+                ctrl.appendChild(slider); ctrl.appendChild(mute);
+                row.appendChild(top); row.appendChild(ctrl);
+                row.title = hint;
+                rows.appendChild(row);
+                mixerRefreshers.push(refresh);
+                refresh();
+            });
+            document.getElementById('mixer-copy')?.addEventListener('click', () => {
+                const out = 'const SOUND_MIX = ' + JSON.stringify(SOUND_MIX, null, 4)
+                    .replace(/"(\w+)":/g, '$1:') + ';';
+                navigator.clipboard?.writeText(out).then(
+                    () => { if (statusEl) statusEl.textContent = 'Copied to clipboard'; },
+                    () => { if (statusEl) statusEl.textContent = out; }
+                );
+            });
+            document.getElementById('mixer-reset')?.addEventListener('click', () => {
+                MIXER_LAYERS.forEach(([key]) => { SOUND_MIX[key] = 1.0; });
+                applyMixerMaster();
+                mixerRefreshers.forEach((fn) => fn());
+                if (statusEl) statusEl.textContent = 'Reset to 100%';
+            });
+        }
+        // === Audio-only recorder: taps masterOutput, exports a Premiere-ready stereo WAV ===
+        let audioTapNode = null, audioTapSink = null, recBuffersL = [], recBuffersR = [];
+        let isRecordingAudio = false, recStartSec = 0, recTimer = null;
+        function encodeWav(left, right, sampleRate) {
+            const len = left.length;
+            const buffer = new ArrayBuffer(44 + len * 4);
+            const view = new DataView(buffer);
+            const writeStr = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
+            writeStr(0, 'RIFF'); view.setUint32(4, 36 + len * 4, true); writeStr(8, 'WAVE');
+            writeStr(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+            view.setUint16(22, 2, true); view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * 4, true); view.setUint16(32, 4, true); view.setUint16(34, 16, true);
+            writeStr(36, 'data'); view.setUint32(40, len * 4, true);
+            let off = 44;
+            for (let i = 0; i < len; i++) {
+                const l = Math.max(-1, Math.min(1, left[i]));
+                const r = Math.max(-1, Math.min(1, right[i]));
+                view.setInt16(off, l < 0 ? l * 32768 : l * 32767, true); off += 2;
+                view.setInt16(off, r < 0 ? r * 32768 : r * 32767, true); off += 2;
+            }
+            return new Blob([view], { type: 'audio/wav' });
+        }
+        function startAudioRecording() {
+            const statusEl = document.getElementById('mixer-status');
+            if (!audioCtx || !masterOutput || !isAudioInitialized) {
+                if (statusEl) statusEl.textContent = 'Enter the piece first (sound must be on)';
+                return;
+            }
+            if (isRecordingAudio) return;
+            recBuffersL = []; recBuffersR = [];
+            audioTapNode = audioCtx.createScriptProcessor(4096, 2, 2);
+            audioTapNode.onaudioprocess = (e) => {
+                recBuffersL.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+                recBuffersR.push(new Float32Array(e.inputBuffer.getChannelData(1)));
+            };
+            audioTapSink = audioCtx.createGain();
+            audioTapSink.gain.value = 0;
+            masterOutput.connect(audioTapNode);
+            audioTapNode.connect(audioTapSink);
+            audioTapSink.connect(audioCtx.destination);
+            isRecordingAudio = true;
+            recStartSec = audioCtx.currentTime;
+            const btn = document.getElementById('mixer-record');
+            if (btn) { btn.textContent = '■ Stop & save'; btn.style.background = 'rgba(226,85,75,0.30)'; }
+            recTimer = setInterval(() => {
+                if (!isRecordingAudio) return;
+                const el = document.getElementById('mixer-status');
+                if (el) el.textContent = '● REC ' + (audioCtx.currentTime - recStartSec).toFixed(1) + 's';
+            }, 200);
+        }
+        function stopAudioRecording() {
+            if (recTimer) { clearInterval(recTimer); recTimer = null; }
+            const statusEl = document.getElementById('mixer-status');
+            if (!isRecordingAudio) return;
+            isRecordingAudio = false;
+            try { masterOutput.disconnect(audioTapNode); } catch (e) {}
+            try { audioTapNode.disconnect(); audioTapSink.disconnect(); } catch (e) {}
+            audioTapNode.onaudioprocess = null;
+            const total = recBuffersL.reduce((n, b) => n + b.length, 0);
+            const left = new Float32Array(total), right = new Float32Array(total);
+            let p = 0;
+            for (let i = 0; i < recBuffersL.length; i++) { left.set(recBuffersL[i], p); right.set(recBuffersR[i], p); p += recBuffersL[i].length; }
+            recBuffersL = []; recBuffersR = [];
+            const blob = encodeWav(left, right, audioCtx.sampleRate);
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `Machine_Anxiety_Audio_${Date.now()}.wav`;
+            link.click();
+            URL.revokeObjectURL(link.href);
+            const secs = (total / audioCtx.sampleRate).toFixed(1);
+            if (statusEl) statusEl.textContent = `Saved ${secs}s WAV`;
+            const btn = document.getElementById('mixer-record');
+            if (btn) { btn.textContent = '● Record audio'; btn.style.background = 'rgba(226,85,75,0.12)'; }
+        }
+        function toggleAudioRecording() {
+            if (isRecordingAudio) stopAudioRecording(); else startAudioRecording();
+        }
+        document.getElementById('mixer-record')?.addEventListener('click', toggleAudioRecording);
+
+        buildAudioMixer();
+
         animate();
     </script>
 </body>
