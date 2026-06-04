@@ -1518,17 +1518,17 @@
             const slowPressure = 0.5 + 0.5 * Math.sin(now * 0.00031 + sndTrend * 0.8);
             // accum (0..~1) is the accumulated erosion tension: swells the drone body and
             // opens its filter so the roof-collapse climax has weight, not just instant data.
-            const breathIntensity = (0.010 + sndVol * 0.050 + sndAnx * 0.018) * (0.38 + breathLfo * 0.62) * (1 + accum * 0.75) * fadeGain * SOUND_LAYER_GAIN * SOUND_MIX.machine;
+            const breathIntensity = (0.010 + sndVol * 0.050 + sndAnx * 0.018) * (0.38 + breathLfo * 0.62) * (1 + accum * 1.3) * fadeGain * SOUND_LAYER_GAIN * SOUND_MIX.machine;
 
-            oscillator.frequency.setTargetAtTime(34 + sndVol * 13 + slowPressure * 4 + accum * 6, nowSec, 0.16);
-            filterNode.frequency.setTargetAtTime(105 + sndVol * 390 + Math.abs(sndTrend) * 180 + accum * 140, nowSec, 0.18);
+            oscillator.frequency.setTargetAtTime(34 + sndVol * 13 + slowPressure * 4 + accum * 9, nowSec, 0.16);
+            filterNode.frequency.setTargetAtTime(105 + sndVol * 390 + Math.abs(sndTrend) * 180 + accum * 260, nowSec, 0.18);
             gainNode.gain.setTargetAtTime(breathIntensity, nowSec, 0.18);
             if (machinePanner) machinePanner.pan.setTargetAtTime(THREE.MathUtils.clamp(sndTrend * 0.16 + Math.sin(now * 0.00027) * 0.08, -0.35, 0.35), nowSec, 0.25);
 
-            const bpm = 34 + volatility * 58 + shock * 26 + accum * 12;
+            const bpm = 34 + volatility * 58 + shock * 26 + accum * 20;
             const beatInterval = 60 / bpm;
             if (nowSec >= nextHeartbeatTime && fadeGain > 0.05) {
-                const pulseAmp = (0.018 + volatility * 0.050 + shock * 0.030) * (1 + accum * 0.5) * fadeGain * SOUND_LAYER_GAIN * SOUND_MIX.heartbeat;
+                const pulseAmp = (0.018 + volatility * 0.050 + shock * 0.030) * (1 + accum * 0.75) * fadeGain * SOUND_LAYER_GAIN * SOUND_MIX.heartbeat;
                 if (pulseAmp > 0.00005) {
                     subOscillator.frequency.setValueAtTime(29 + volatility * 8, nowSec);
                     subGainNode.gain.cancelScheduledValues(nowSec);
@@ -1546,7 +1546,7 @@
             }
 
             const noiseBrightness = 420 + sndVol * 1850 + Math.max(sndTrend, 0) * 360 + sndShockTone * 1200;
-            const noiseLevel = (0.012 + sndVol * 0.050 + sndAnx * 0.014) * (1 + accum * 0.45) * fadeGain * SOUND_LAYER_GAIN * SOUND_MIX.room;
+            const noiseLevel = (0.012 + sndVol * 0.050 + sndAnx * 0.014) * (1 + accum * 0.8) * fadeGain * SOUND_LAYER_GAIN * SOUND_MIX.room;
             roomNoiseGain.gain.setTargetAtTime(noiseLevel, nowSec, 0.28);
             roomFilter.frequency.setTargetAtTime(noiseBrightness, nowSec, 0.40);
             roomFilter.Q.setTargetAtTime(0.45 + sndVol * 1.8, nowSec, 0.30);
@@ -1714,8 +1714,8 @@
             // climax swells instead of staying flat. Mirrors the visual erosion build and
             // peaks ~0.90 (just before the outro fade) to land during the visual climax.
             const soundAccumulation = THREE.MathUtils.clamp(
-                erosionMemory * 0.55 + getThresholdBlend(activeCycleProgress, END_PULL_START, LOOP_FADE_START) * 0.85,
-                0, 1.1
+                erosionMemory * 0.6 + getThresholdBlend(activeCycleProgress, 0.62, LOOP_FADE_START) * 1.0,
+                0, 1.3
             );
             updateDataDrivenSound(now, endFade, soundAccumulation);
 
